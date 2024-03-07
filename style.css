@@ -1,0 +1,123 @@
+body {
+  margin: 0;
+  font-family: "Nunito Sans", sans-serif;
+  background-color: #111c33;
+  color: #fff;
+}
+
+#moviesContainer {
+  display: flex;
+  flex-wrap: wrap; /* Allowing items to wrap to the next row */
+  justify-content: center;
+}
+
+.movieheader{
+display: flex;
+background-color: #1a3368;
+justify-content: space-between;
+}
+.nowPlaying{
+font-size: 20px;
+color: white;
+font-weight: bold;
+margin-inline: 20px;
+}
+
+#next,
+#back{
+  height: 100%;
+  width: 100px;
+  color: white;
+  background-color: #007bff;
+  font-size: 20px;
+}
+
+.movie-card {
+  width: 250px;
+  color: aliceblue;
+  background: rgba(255, 255, 255, 0.2);
+  backdrop-filter: blur(5px);
+  border-radius: 4px;
+
+  padding: 10px;
+  margin: 20px;
+  display: flex;
+  flex-direction: column; /* Arrange details in a column */
+  align-items: center; /* Center-align items */
+  overflow: hidden;
+}
+
+.movie-image {
+  width: 100%;
+  margin-bottom: 10px;
+}
+.movie-image:hover {
+  scale: 1.1;
+  transition: 0.2s ease-in;
+}
+
+.movie-details {
+  display: flex;
+  flex-direction: column; /* Arrange details in a column */
+  align-items: center; /* Center-align items */
+  text-align: center; /* Center-align text */
+  margin-block: 10px;
+}
+
+.movie-title {
+  font-size: 20px;
+  font-weight: 800;
+  margin-bottom: 5px;
+}
+
+.movie-rating {
+  margin-bottom: 10px;
+}
+
+.watch-now-btn {
+  background-color: #007bff;
+  color: #fff;
+  border: none;
+  font-size: large;
+  padding: 5px 10px;
+  border-radius: 5px;
+  cursor: pointer;
+  width: 100%;
+  height: 50px;
+}
+
+@media screen and (max-width: 768px) {
+  .movie-image {
+    width: 100%;
+    margin-bottom: 10px;
+  }
+}
+
+
+#movieViewer {
+  width: 100%;
+  padding-bottom: 56%;
+  transition: transform .3s;
+  border-radius: 0.6rem;
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(21, 44, 66, .9);
+}
+
+#movieFrame {
+  width: 100%;
+  height: 100%;
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sub-notation {
+  text-align: center;
+  color: #ffffff;
+  font-size: 18px;
+}
+#footer{
+  background-color: #1c2d53;
+}
