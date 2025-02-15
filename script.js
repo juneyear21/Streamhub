@@ -1,6 +1,13 @@
 const apiKey = "557c35bbbe97da53f3bdfa06f11ff7de";
 const accessToken = "eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiI1NTdjMzViYmJlOTdkYTUzZjNiZGZhMDZmMTFmZjdkZSIsInN1YiI6IjY1ZDVmYzYyZmZkNDRkMDE4NzJiMzA4ZCIsInNjb3BlcyI6WyJhcGlfcmVhZCJdLCJ2ZXJzaW9uIjoxfQ.TjyOjpsyuqPvvw97Gk7QyCkmf3x_G8esHJ7IU26ge9M";
 
+// Add these variables at the top of your file
+let currentPage = 1;
+let currentGenre = null;
+let currentGenreName = '';
+let movieHistory = [];
+let currentMovieIndex = -1;
+
 // Add these functions at the beginning of your script.js
 
 async function initializeHeroSection() {
@@ -103,43 +110,187 @@ async function loadTrailers(type = 'popular') {
   }
 }
 
-// Add this function to load Now Playing Movies
-async function loadNowPlayingMovies() {
-  try {
-    const response = await fetch(
-      `https://api.themoviedb.org/3/movie/now_playing?api_key=${apiKey}&language=en-US&page=1`
-    );
-    const data = await response.json();
-    const container = document.getElementById('nowPlayingContainer');
-    
-    if (!container) {
-      console.error('Container not found');
-      return;
-    }
+// Remove loadNowPlayingMovies function and its references
 
-    container.innerHTML = data.results.slice(0, 10).map(movie => `
-      <div class="movie-card" onclick="showMovieDetails(${movie.id})">
-        <img class="movie-image" 
-             src="https://image.tmdb.org/t/p/w500${movie.poster_path}" 
-             alt="${movie.title}">
-        <div class="movie-details">
-          <h3 class="movie-title">${movie.title}</h3>
-          <span class="movie-rating">⭐ ${movie.vote_average.toFixed(1)}</span>
+// Update the showMovieDetails function
+function showMovieDetails(movieId, pushToHistory = true) {
+  if (pushToHistory) {
+    // Add to history only if it's a new selection
+    if (currentMovieIndex === -1 || movieHistory[currentMovieIndex] !== movieId) {
+      // Remove forward history if we're not at the end
+      if (currentMovieIndex < movieHistory.length - 1) {
+        movieHistory = movieHistory.slice(0, currentMovieIndex + 1);
+      }
+      movieHistory.push(movieId);
+      currentMovieIndex = movieHistory.length - 1;
+    }
+  }
+
+  // Update URL without affecting history stack
+  window.history.replaceState(
+    { type: 'movie', id: movieId }, 
+    '', 
+    `?movie=${movieId}`
+  );
+
+  loadMovieDetails(movieId);
+  updateNavigationButtons();
+}
+
+// Add navigation buttons to the movie detail overlay
+function updateMovieDetailOverlay(movie, genreTags) {
+  const overlay = document.getElementById('movieDetailOverlay');
+  overlay.innerHTML = `
+    <div class="detail-container">
+      <button class="close-detail">&times;</button>
+      <div class="detail-content">
+        <div class="detail-left">
+          <div id="moviePlayer">
+            <iframe 
+              id="detailMovieFrame"
+              src="https://vidsrc.xyz/embed/movie/${movie.id}"
+              frameborder="0"
+              allowfullscreen
+            ></iframe>
+          </div>
+        </div>
+        <div class="detail-right">
+          <h2>${movie.title}</h2>
+          <div class="movie-meta">
+            <span>${movie.release_date?.split('-')[0] || 'N/A'}</span>
+            <span>${movie.vote_average?.toFixed(1) || 'N/A'}/10</span>
+            <span>${movie.runtime || 'N/A'} min</span>
+          </div>
+          <div class="genre-tags">
+            ${genreTags}
+          </div>
+          <p>${movie.overview}</p>
         </div>
       </div>
-    `).join('');
+      <div class="recommended-section">
+        <h3>Recommended Movies</h3>
+        <div id="recommendedMovies" class="recommended-container"></div>
+      </div>
+    </div>
+  `;
 
-    // Initialize slider for Now Playing section
-    initializeSlider('nowPlayingContainer');
-  } catch (error) {
-    console.error('Error loading now playing movies:', error);
+  // Add event listener for close button
+  const closeButton = overlay.querySelector('.close-detail');
+  closeButton.addEventListener('click', closeMovieDetail);
+
+  // Add event listeners for genre tags
+  document.querySelectorAll('.genre-tag').forEach(tag => {
+    tag.addEventListener('click', () => {
+      const genreId = tag.dataset.genreId;
+      const genreName = tag.dataset.genreName;
+      showGenrePage(genreId, genreName);
+    });
+  });
+}
+
+// Add function to handle movie history navigation
+function navigateMovieHistory(direction) {
+  if (direction === 'prev' && currentMovieIndex > 0) {
+    currentMovieIndex--;
+    showMovieDetails(movieHistory[currentMovieIndex], false);
+  } else if (direction === 'next' && currentMovieIndex < movieHistory.length - 1) {
+    currentMovieIndex++;
+    showMovieDetails(movieHistory[currentMovieIndex], false);
+  }
+  updateNavigationButtons();
+}
+
+// Update navigation buttons state
+function updateNavigationButtons() {
+  const prevButton = document.querySelector('.prev-movie');
+  const nextButton = document.querySelector('.next-movie');
+  
+  if (prevButton && nextButton) {
+    prevButton.disabled = currentMovieIndex <= 0;
+    nextButton.disabled = currentMovieIndex >= movieHistory.length - 1;
   }
 }
+
+// Update the closeMovieDetail function
+function closeMovieDetail() {
+  const overlay = document.getElementById('movieDetailOverlay');
+  const iframe = document.getElementById('detailMovieFrame');
+  if (iframe) iframe.src = '';
+  overlay.style.display = 'none';
+  document.body.style.overflow = 'auto';
+  // Reset URL
+  history.pushState(null, '', '/');
+}
+
+// Update loadMovieDetails function
+function loadMovieDetails(movieId) {
+  fetch(`https://api.themoviedb.org/3/movie/${movieId}?api_key=${apiKey}`)
+    .then(response => response.json())
+    .then(movie => {
+      const genreTags = movie.genres.map(genre => 
+        `<button class="genre-tag" data-genre-id="${genre.id}" data-genre-name="${genre.name}">
+          ${genre.name}
+        </button>`
+      ).join('');
+
+      const overlay = document.getElementById('movieDetailOverlay');
+      overlay.style.display = 'block';
+      document.body.style.overflow = 'hidden';
+
+      updateMovieDetailOverlay(movie, genreTags);
+      loadRecommendedMovies(movieId);
+    });
+}
+
+// Add new function to show genre page
+function showGenrePage(genreId, genreName) {
+  currentGenre = genreId;
+  currentGenreName = genreName;
+  currentPage = 1;
+
+  // Update URL and history
+  const state = { type: 'genre', id: genreId, name: genreName, page: currentPage };
+  history.pushState(state, '', `?genre=${genreId}&page=${currentPage}`);
+
+  // Hide other containers and show genre page
+  document.querySelector('.container-main').style.display = 'none';
+  document.getElementById('movieDetailOverlay').style.display = 'none';
+  const genrePage = document.getElementById('genrePageContainer');
+  genrePage.style.display = 'block';
+
+  // Update genre title
+  document.getElementById('genreTitle').textContent = `${genreName} Movies`;
+
+  // Load genre movies
+  loadGenreMovies(genreId, currentPage);
+}
+
+// Add function to load genre movies
+function loadGenreMovies(genreId, page = 1) {
+  const apiUrl = `https://api.themoviedb.org/3/discover/movie?api_key=${apiKey}&with_genres=${genreId}&page=${page}`;
+  
+  fetch(apiUrl)
+    .then(response => response.json())
+    .then(data => {
+      const container = document.getElementById('genreMoviesContainer');
+      container.innerHTML = data.results
+        .map(movie => createMovieCard(movie))
+        .join('');
+    });
+}
+
+// Add history navigation handling
+window.addEventListener('popstate', (event) => {
+  if (event.state && event.state.movieId) {
+    loadMovieDetails(event.state.movieId);
+  } else {
+    closeMovieDetail();
+  }
+});
 
 // Initialize everything when the page loads
 document.addEventListener('DOMContentLoaded', () => {
   initializeHeroSection();
-  loadNowPlayingMovies(); // Add this line
   
   // Add tab button handlers
   document.querySelectorAll('.tab-btn').forEach(btn => {
@@ -158,30 +309,57 @@ document.addEventListener('DOMContentLoaded', () => {
       loadCategoryContent(category);
     });
   });
+
+  populateYearFilter();
+  
+  // Add event listeners for filters
+  document.getElementById('genreFilter').addEventListener('change', searchMovie);
+  document.getElementById('yearFilter').addEventListener('change', searchMovie);
+  
+  // Check for movie in URL on page load
+  const urlParams = new URLSearchParams(window.location.search);
+  const movieId = urlParams.get('movie');
+  if (movieId) {
+    loadMovieDetails(movieId);
+  }
 });
 
 function searchMovie() {
   const searchQuery = document.querySelector("#searchInput").value;
+  const selectedGenre = document.querySelector("#genreFilter").value;
+  const selectedYear = document.querySelector("#yearFilter").value;
   
-const options = {
-  method: 'GET',
-  headers: {
-    accept: 'application/json',
-    Authorization: 'Bearer eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiI1NTdjMzViYmJlOTdkYTUzZjNiZGZhMDZmMTFmZjdkZSIsInN1YiI6IjY1ZDVmYzYyZmZkNDRkMDE4NzJiMzA4ZCIsInNjb3BlcyI6WyJhcGlfcmVhZCJdLCJ2ZXJzaW9uIjoxfQ.TjyOjpsyuqPvvw97Gk7QyCkmf3x_G8esHJ7IU26ge9M'
+  let apiUrl = `https://api.themoviedb.org/3/discover/movie?api_key=${apiKey}&language=en-US&sort_by=popularity.desc`;
+  
+  // Add filters if they are selected
+  if (selectedGenre) {
+    apiUrl += `&with_genres=${selectedGenre}`;
   }
-};
+  
+  if (selectedYear) {
+    apiUrl += `&primary_release_year=${selectedYear}`;
+  }
+  
+  // Add search query if present
+  if (searchQuery) {
+    apiUrl = `https://api.themoviedb.org/3/search/multi?api_key=${apiKey}&query=${encodeURIComponent(searchQuery)}&include_adult=false&language=en-US&page=1`;
+  }
 
-  fetch(
-    `https://api.themoviedb.org/3/search/multi?query=${encodeURIComponent(searchQuery)}&include_adult=false&language=en-US&page=1&api_key=${apiKey}`,
-    options
-  )
+  const options = {
+    method: 'GET',
+    headers: {
+      accept: 'application/json',
+      Authorization: `Bearer ${accessToken}`
+    }
+  };
+
+  fetch(apiUrl, options)
     .then((response) => response.json())
     .then((data) => {
       displayMovies(data.results);
     })
     .catch((error) => console.error("Error:", error));
 }
-
 
 const searchButton = document.querySelector("#searchbutton");
 
@@ -191,69 +369,17 @@ searchButton.addEventListener('click',(event) => {
   console.log("movie search");
 });
 
-
-// Update the showMovieDetails function
-function showMovieDetails(movieId) {
-  fetch(`https://api.themoviedb.org/3/movie/${movieId}?api_key=${apiKey}`)
-    .then(response => response.json())
-    .then(movie => {
-      // Try to get video sources
-      return Promise.all([
-        movie,
-        fetch(`https://api.themoviedb.org/3/movie/${movieId}/videos?api_key=${apiKey}`).then(r => r.json())
-      ]);
-    })
-    .then(([movie, videos]) => {
-      const overlay = document.getElementById('movieDetailOverlay');
-      overlay.style.display = 'block';
-      document.body.style.overflow = 'hidden';
-
-      // Simplified player implementation
-      overlay.innerHTML = `
-        <div class="detail-container">
-          <button class="close-detail">&times;</button>
-          <div class="detail-content">
-            <div class="detail-left">
-              <div id="moviePlayer">
-                <iframe 
-                  id="detailMovieFrame"
-                  src="https://vidsrc.xyz/embed/movie/${movieId}"
-                  frameborder="0"
-                  allowfullscreen
-                ></iframe>
-              </div>
-            </div>
-            <div class="detail-right">
-              <h2>${movie.title}</h2>
-              <div class="movie-meta">
-                <span>${movie.release_date.split('-')[0]}</span>
-                <span>${movie.vote_average.toFixed(1)}/10</span>
-                <span>${movie.runtime} min</span>
-              </div>
-              <div class="genre-tags">
-                ${movie.genres.map(genre => `
-                  <span class="genre-tag">${genre.name}</span>
-                `).join('')}
-              </div>
-              <p>${movie.overview}</p>
-            </div>
-          </div>
-          <div class="recommended-section">
-            <h3>Recommended Movies</h3>
-            <div id="recommendedMovies" class="recommended-container"></div>
-          </div>
-        </div>
-      `;
-
-      // Add close functionality
-      document.querySelector('.close-detail').addEventListener('click', () => {
-        overlay.style.display = 'none';
-        document.body.style.overflow = 'auto';
-      });
-
-      // Load recommended movies
-      loadRecommendedMovies(movieId);
-    });
+// Populate year filter with last 50 years
+function populateYearFilter() {
+  const yearFilter = document.getElementById('yearFilter');
+  const currentYear = new Date().getFullYear();
+  
+  for (let year = currentYear; year >= currentYear - 50; year--) {
+    const option = document.createElement('option');
+    option.value = year;
+    option.textContent = year;
+    yearFilter.appendChild(option);
+  }
 }
 
 // Add these new helper functions
@@ -291,6 +417,8 @@ function closeMovieDetail() {
   if (iframe) iframe.src = '';
   overlay.style.display = 'none';
   document.body.style.overflow = 'auto';
+  // Reset URL
+  history.pushState(null, '', '/');
 }
 
 function loadRecommendedMovies(movieId) {
@@ -523,4 +651,75 @@ async function loadCategoryContent(category) {
     console.error('Error loading category content:', error);
   }
 }
+
+// Add navigation event handlers
+document.getElementById('backToMain').addEventListener('click', () => {
+  document.getElementById('genrePageContainer').style.display = 'none';
+  document.querySelector('.container-main').style.display = 'block';
+  history.pushState(null, '', '/');
+});
+
+document.getElementById('genreNext').addEventListener('click', () => {
+  currentPage++;
+  loadGenreMovies(currentGenre, currentPage);
+  history.pushState(
+    { type: 'genre', id: currentGenre, name: currentGenreName, page: currentPage },
+    '',
+    `?genre=${currentGenre}&page=${currentPage}`
+  );
+});
+
+document.getElementById('genreBack').addEventListener('click', () => {
+  if (currentPage > 1) {
+    currentPage--;
+    loadGenreMovies(currentGenre, currentPage);
+    history.pushState(
+      { type: 'genre', id: currentGenre, name: currentGenreName, page: currentPage },
+      '',
+      `?genre=${currentGenre}&page=${currentPage}`
+    );
+  }
+});
+
+// Handle browser navigation
+window.addEventListener('popstate', (event) => {
+  if (event.state) {
+    if (event.state.type === 'movie') {
+      loadMovieDetails(event.state.id);
+    } else if (event.state.type === 'genre') {
+      showGenrePage(event.state.id, event.state.name);
+      currentPage = event.state.page;
+      loadGenreMovies(event.state.id, event.state.page);
+    }
+  } else {
+    // No state means we're back at the home page
+    closeMovieDetail();
+    document.getElementById('genrePageContainer').style.display = 'none';
+    document.querySelector('.container-main').style.display = 'block';
+  }
+});
+
+// Check URL parameters on page load
+document.addEventListener('DOMContentLoaded', () => {
+  const urlParams = new URLSearchParams(window.location.search);
+  const movieId = urlParams.get('movie');
+  const genreId = urlParams.get('genre');
+  const page = parseInt(urlParams.get('page')) || 1;
+
+  if (movieId) {
+    loadMovieDetails(movieId);
+  } else if (genreId) {
+    // Need to fetch genre name first
+    fetch(`https://api.themoviedb.org/3/genre/movie/list?api_key=${apiKey}`)
+      .then(response => response.json())
+      .then(data => {
+        const genre = data.genres.find(g => g.id.toString() === genreId);
+        if (genre) {
+          showGenrePage(genreId, genre.name);
+          currentPage = page;
+          loadGenreMovies(genreId, page);
+        }
+      });
+  }
+});
 
